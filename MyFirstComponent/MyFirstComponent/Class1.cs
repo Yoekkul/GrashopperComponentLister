@@ -6,6 +6,7 @@ using Grasshopper;
 using Grasshopper.Kernel;
 
 using Grasshopper.Kernel.Special;
+using Grasshopper.Kernel.Types;
 
 
 //https://www.grasshopper3d.com/forum/topics/is-it-possible-to-call-the-functions-of-a-grasshopper-component
@@ -49,20 +50,21 @@ namespace MyFirstComponent
     //This struct holds the params affecting a component (it's inputs and outputs)
     public struct ComponentParam
     {
-        public ComponentParam(string connectionPointNickname, string connectedComponentName, Guid connectedComponentGuid) {
+        public ComponentParam(string connectionPointNickname, string connectedComponentName, Guid connectedComponentGuid, string passedValues) {
             ConnectionPointNickname = connectionPointNickname;
             ConnectedComponentName = connectedComponentName;
             ConnectedComponentGuid = connectedComponentGuid;
+            PassedValues = passedValues;
         }
 
         public string ConnectionPointNickname { get; }
 
         public string ConnectedComponentName { get; }
         public Guid ConnectedComponentGuid { get; }
-        //find way of also adding data which is passed 
+        public string PassedValues { get; }
 
-
-        public override string ToString() => $"{ConnectionPointNickname}: {ConnectedComponentName} -> DATA";
+        //DATA is passed along in a "tree" format
+        public override string ToString() => $"{ConnectionPointNickname}: {ConnectedComponentName} -> [{PassedValues.Substring(0, Math.Min(PassedValues.Length, 150))}]";
 
     }
     
@@ -109,19 +111,36 @@ namespace MyFirstComponent
 
                 //Reading all values inputed from the component ----------------------------------------
                 foreach (IGH_Param inputGhParam in element.Params.Input) {
-                   
+
+
+                    //Here we collect inputed values together. It's an ugly work-around
+                    string outputtedData = "";
+                    for (int i = 0; i< inputGhParam.VolatileData.DataCount; i++) {
+                        outputtedData += inputGhParam.VolatileData.get_Branch(0)[i].ToString()+", ";
+                    }
+                    
                     foreach (var sourceComponent in inputGhParam.Sources) {
-                        //sourceComponent.VolatileData.ToString();  //TODO figure out how to get data being passed
-                        inputParams.Add(new ComponentParam(inputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid));
+                            
+                        //With the below function we can get a list of all possible inputs
+                        /*
+                        IGH_Goo[] flattenedTree = sourceComponent.VolatileData.AllData(true).ToArray();
+                        string[] strFlattenedTree = flattenedTree.Select(x => x.ScriptVariable().ToString()).ToArray();
+                        */
+
+                        inputParams.Add(new ComponentParam(inputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid, outputtedData));
                     }
                 }
                 
                 //Reading all values which the component outputs ----------------------------------------
                 foreach (IGH_Param outputGhParam in element.Params.Output) {
 
+
+                    string outputtedData = "";
+                    for (int i = 0; i < outputGhParam.VolatileData.DataCount; i++) {
+                        outputtedData += outputGhParam.VolatileData.get_Branch(0)[i].ToString() + ", ";
+                    }
                     foreach (var sourceComponent in outputGhParam.Recipients) {
-                        //sourceComponent.VolatileData.ToString();  //TODO figure out how to get data being passed
-                        outputParams.Add(new ComponentParam(outputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid));
+                        outputParams.Add(new ComponentParam(outputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid, outputtedData));
                     }
                 }
 
