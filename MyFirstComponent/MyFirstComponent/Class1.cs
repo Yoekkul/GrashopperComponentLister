@@ -13,6 +13,58 @@ using Grasshopper.Kernel.Special;
 
 namespace MyFirstComponent
 {
+
+    /* 
+     * -------------------- DataStructures -----------------
+    */
+
+    public struct ComponentHolder {
+        
+        public ComponentHolder(string name, Guid guid, List<ComponentParam> inputs, List<ComponentParam> outputs) {
+            Name = name;
+            Guid = guid;
+            Inputs = inputs;
+            Outputs = outputs;
+        }
+        
+        public string Name { get; }
+        public Guid Guid { get; }
+        public List<ComponentParam> Inputs { get; }
+        public List<ComponentParam> Outputs { get; }
+
+        public override string ToString() {
+            string str = $"{Name}: \n \t guid:{Guid}\n \t \t Inputs: ";
+            foreach (ComponentParam par in Inputs) {
+                str += "\n \t \t \t" +par.ToString();
+            }
+            str += "\n \t \t Outputs: ";
+            foreach (ComponentParam par in Outputs) {
+                str += "\n \t \t \t" + par.ToString();
+            }
+            return str;
+        }
+
+    }
+
+    //This struct holds the params affecting a component (it's inputs and outputs)
+    public struct ComponentParam
+    {
+        public ComponentParam(string connectionPointNickname, string connectedComponentName, Guid connectedComponentGuid) {
+            ConnectionPointNickname = connectionPointNickname;
+            ConnectedComponentName = connectedComponentName;
+            ConnectedComponentGuid = connectedComponentGuid;
+        }
+
+        public string ConnectionPointNickname { get; }
+
+        public string ConnectedComponentName { get; }
+        public Guid ConnectedComponentGuid { get; }
+        //find way of also adding data which is passed 
+
+
+        public override string ToString() => $"{ConnectionPointNickname}: {ConnectedComponentName} -> DATA";
+
+    }
     
 
     public class Class1 : GH_Component
@@ -44,59 +96,42 @@ namespace MyFirstComponent
         //SolveInstance only executes when it gets new input
         protected override void SolveInstance(IGH_DataAccess DA) {
             ghdoc = Instances.ActiveCanvas.Document;
-            //ghenv.Component.Params.Input[];
-
-
-            List<string> componentNames = new List<string>();
-            List<string> connections = new List<string>();
             
+            List<ComponentHolder> componentsDescription = new List<ComponentHolder>();
             
-            /*
-            foreach(var attr in ghdoc.Attributes) {
-
-                componentNames.Add(attr.ToString());
-
-                //GH_Component data = attr.GetTopLevel.DocObject;
-
-            
-                
-            }
-            */
-
-            
-            //ghdoc.Objects.GetEnumerator();
-            int len = ghdoc.ActiveObjects().Count();
-            
+            //int len = ghdoc.ActiveObjects().Count();
             
             //This gets the components but misses the "params" (eg button, ...)
-            foreach (var element in ghdoc.Objects.OfType<GH_Component>()) {       //GH_Component in            IGH_ActiveObject != GH_Component
-                componentNames.Add(element.Name);
+            foreach (var element in ghdoc.Objects.OfType<GH_Component>()) {
+                List<ComponentParam> inputParams = new List<ComponentParam>();
+                List<ComponentParam> outputParams = new List<ComponentParam>();
                 
-                
-                
-                //We only need to check inputs since we have a DAG (!exception are "source" components)
-                foreach (IGH_Param ghParam in element.Params.Input) {  //IGH_Param in
-                                                                    //ghparam.Attributes.GetTopLevel.DocObject  //<- check what this returns
 
-                    
-
-                    String connection = ghParam.NickName+ ": [";
-                    foreach (var sourceComponent in ghParam.Sources) {
-                        //sourceComponent.VolatileData.ToString;
-                        //sourceComponent.InstanceGuid
-                        connection += sourceComponent.Name + ", "+ sourceComponent.InstanceGuid;
+                //Reading all values inputed from the component ----------------------------------------
+                foreach (IGH_Param inputGhParam in element.Params.Input) {
+                   
+                    foreach (var sourceComponent in inputGhParam.Sources) {
+                        //sourceComponent.VolatileData.ToString();  //TODO figure out how to get data being passed
+                        inputParams.Add(new ComponentParam(inputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid));
                     }
-                    connection += "]";
-                    connections.Add(connection);
                 }
                 
-                
+                //Reading all values which the component outputs ----------------------------------------
+                foreach (IGH_Param outputGhParam in element.Params.Output) {
+
+                    foreach (var sourceComponent in outputGhParam.Recipients) {
+                        //sourceComponent.VolatileData.ToString();  //TODO figure out how to get data being passed
+                        outputParams.Add(new ComponentParam(outputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid));
+                    }
+                }
+
+                ComponentHolder currentComponent = new ComponentHolder(element.Name, element.InstanceGuid, inputParams, outputParams);
+                componentsDescription.Add(currentComponent);
             }
             
 
             //-------
-            //DA.SetDataList(0, componentNames);
-            DA.SetDataList(0, connections);
+            DA.SetDataList(0, componentsDescription);
         }
 
         
