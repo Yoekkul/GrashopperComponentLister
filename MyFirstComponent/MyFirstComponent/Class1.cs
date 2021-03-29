@@ -7,6 +7,7 @@ using Grasshopper.Kernel;
 
 using Grasshopper.Kernel.Special;
 using Grasshopper.Kernel.Types;
+using Grasshopper.GUI;
 
 
 //https://www.grasshopper3d.com/forum/topics/is-it-possible-to-call-the-functions-of-a-grasshopper-component
@@ -76,17 +77,24 @@ namespace MyFirstComponent
         GH_Document ghdoc;
 
         public Class1(): base("MyFirst", "MFC", "My first component", "Extra", "Simple") {
-            
+        }
+
+        
+        public override void AddedToDocument(GH_Document document) {
+            base.AddedToDocument(document);
+            Instances.ActiveCanvas.Document.ObjectsAdded += new GH_Document.ObjectsAddedEventHandler(DocumentChanges);
+            Instances.ActiveCanvas.Document.ObjectsDeleted += new GH_Document.ObjectsDeletedEventHandler(DocumentChanges);
+
+            Instances.ActiveCanvas.MouseDown += new System.Windows.Forms.MouseEventHandler(DocumentChanges); //This is a little trick. I ignore what the wires do and just update each time the mouse is clicked
         }
 
         public override Guid ComponentGuid {
             get { return new Guid("419c3a3a-cc48-4717-8cef-5f5647a5ecfc"); } //This is an invented value
         }
 
-        
 
         protected override void RegisterInputParams(GH_InputParamManager pManager) {
-            pManager.AddTextParameter("String", "S", "Satisfy the machine", GH_ParamAccess.item);
+            //pManager.AddTextParameter("String", "S", "Satisfy the machine", GH_ParamAccess.item);
             
         }
 
@@ -104,7 +112,7 @@ namespace MyFirstComponent
             //int len = ghdoc.ActiveObjects().Count();
             
             //This gets the components but misses the "params" (eg button, ...)
-            foreach (var element in ghdoc.Objects.OfType<GH_Component>()) {
+            foreach (var element in ghdoc.Objects.OfType<GH_Component>()) { // .Objects would also return non-components
                 List<ComponentParam> inputParams = new List<ComponentParam>();
                 List<ComponentParam> outputParams = new List<ComponentParam>();
                 
@@ -116,7 +124,7 @@ namespace MyFirstComponent
                     //Here we collect inputed values together. It's an ugly work-around
                     string outputtedData = "";
                     for (int i = 0; i< inputGhParam.VolatileData.DataCount; i++) {
-                        outputtedData += inputGhParam.VolatileData.get_Branch(0)[i].ToString()+", ";
+                        outputtedData += inputGhParam.VolatileData.get_Branch(0)[i].ToString() + (i == inputGhParam.VolatileData.DataCount - 1 ? "" : ","); //no ',' is added in the last iteration
                     }
                     
                     foreach (var sourceComponent in inputGhParam.Sources) {
@@ -137,7 +145,7 @@ namespace MyFirstComponent
 
                     string outputtedData = "";
                     for (int i = 0; i < outputGhParam.VolatileData.DataCount; i++) {
-                        outputtedData += outputGhParam.VolatileData.get_Branch(0)[i].ToString() + ", ";
+                        outputtedData += outputGhParam.VolatileData.get_Branch(0)[i].ToString() + (i == outputGhParam.VolatileData.DataCount-1?"":",");
                     }
                     foreach (var sourceComponent in outputGhParam.Recipients) {
                         outputParams.Add(new ComponentParam(outputGhParam.NickName, sourceComponent.Name, sourceComponent.InstanceGuid, outputtedData));
@@ -147,12 +155,16 @@ namespace MyFirstComponent
                 ComponentHolder currentComponent = new ComponentHolder(element.Name, element.InstanceGuid, inputParams, outputParams);
                 componentsDescription.Add(currentComponent);
             }
-            
-
             //-------
             DA.SetDataList(0, componentsDescription);
         }
 
+
+        //Useful intro to event handling: http://blackwasp.co.uk/CSharpEvents.aspx
+        protected void DocumentChanges(object source, EventArgs e) {
+            object tmp = source;
+            ExpireSolution(true);
+        }
         
 
     }
